@@ -252,6 +252,8 @@ async function fullReset() {
 
 // 平台信息
 const platformIcon = (t: string): string => PLATFORM_INFO[t]?.icon || "📦";
+const platformName = (t: string): string => PLATFORM_INFO[t]?.name || t;
+const platformColor = (t: string): string => PLATFORM_INFO[t]?.color || "#9ca3af";
 
 // 获取所有有结果的平台类型
 const platforms = computed(() => {
