@@ -124,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, nextTick } from "vue";
 import { PLATFORM_INFO } from "~/config/plugins";
 
 const config = useRuntimeConfig();
@@ -259,12 +259,13 @@ async function handleContinueSearch() {
   await continueSearch(getSearchOptions());
 }
 
-// 完全重置 - 清空输入框、结果、状态，并刷新热搜数据
+// 完全重置 - 清空输入框、结果、状态，并恢复/刷新热搜
 async function fullReset() {
   kw.value = "";
   resetSearch();
-  if (doubanHotRef.value) doubanHotRef.value.refresh();
-  if (hotSearchRef.value) hotSearchRef.value.refresh();
+  await nextTick();
+  if (doubanHotRef.value) await doubanHotRef.value.refresh();
+  if (hotSearchRef.value) await hotSearchRef.value.refresh();
 }
 
 // 平台信息
