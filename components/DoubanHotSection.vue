@@ -83,13 +83,13 @@ const loading = ref(false);
 const categories = ref<Record<string, DoubanHotCategory>>({});
 const hasInitialized = ref(false);
 const imgFailed = ref<number[]>([]);
-const selectedCategoryId = ref<string>("douban-movie");
+const selectedCategoryId = ref<string>("douban-top250");
 
 // 所有可用的分类配置
 const availableCategories = computed(() => {
   return [
-    { id: "douban-movie", label: "电影", type: "新片榜" },
     { id: "douban-top250", label: "电影", type: "Top250" },
+    { id: "douban-movie", label: "电影", type: "新片榜" },
     { id: "douban-weekly", label: "电影", type: "口碑榜" },
     { id: "douban-us-box", label: "电影", type: "北美票房" },
   ];

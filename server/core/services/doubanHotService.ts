@@ -137,6 +137,53 @@ async function scrapeDoubanTop250(): Promise<DoubanHotItem[]> {
   return items;
 }
 
+/** 从电影详情页获取封面图片 */
+async function fetchMovieCover(id: number): Promise<string | undefined> {
+  try {
+    // 使用移动版页面获取图片，更稳定
+    const url = `https://m.douban.com/movie/subject/${id}/`;
+    const html = await ofetch<string>(url, {
+      headers: { "user-agent": UA },
+      timeout: 5000,
+    });
+    const $ = load(html);
+    // 移动版页面的图片选择器
+    const img = $("img[src*='view/photo'], img[src*='s_ratio_poster']").first();
+    const cover = img.attr("src") || undefined;
+    if (cover) {
+      return fixDoubanCoverUrl(cover.startsWith("//") ? "https:" + cover : cover);
+    }
+  } catch {
+    // 忽略错误，返回 undefined
+  }
+  return undefined;
+}
+
+/** 批量获取电影封面（并发限制） */
+async function fetchMovieCovers(ids: number[]): Promise<Map<number, string>> {
+  const coverMap = new Map<number, string>();
+  const batchSize = 3; // 并发限制，避免请求过快
+
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map(async (id) => {
+        const cover = await fetchMovieCover(id);
+        return { id, cover };
+      })
+    );
+    for (const { id, cover } of results) {
+      if (cover) coverMap.set(id, cover);
+    }
+    // 短暂延迟避免请求过快
+    if (i + batchSize < ids.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  return coverMap;
+}
+
 async function scrapeDoubanWeekly(): Promise<DoubanHotItem[]> {
   const url = "https://movie.douban.com/chart/";
   const html = await ofetch<string>(url, {
@@ -145,6 +192,7 @@ async function scrapeDoubanWeekly(): Promise<DoubanHotItem[]> {
   });
   const $ = load(html);
   const items: DoubanHotItem[] = [];
+  const idsWithoutCover: number[] = [];
 
   // 找到包含"一周口碑榜"的 h2，然后获取其父元素中的列表
   $("h2").each((_, h2) => {
@@ -172,10 +220,21 @@ async function scrapeDoubanWeekly(): Promise<DoubanHotItem[]> {
             desc,
             url: href || `https://movie.douban.com/subject/${id}/`,
           });
+          if (id) idsWithoutCover.push(id);
         });
       }
     }
   });
+
+  // 批量获取封面
+  if (idsWithoutCover.length > 0) {
+    const coverMap = await fetchMovieCovers(idsWithoutCover);
+    for (const item of items) {
+      if (item.id && coverMap.has(item.id)) {
+        item.cover = coverMap.get(item.id);
+      }
+    }
+  }
 
   return items;
 }
@@ -188,6 +247,7 @@ async function scrapeDoubanUsBox(): Promise<DoubanHotItem[]> {
   });
   const $ = load(html);
   const items: DoubanHotItem[] = [];
+  const idsWithoutCover: number[] = [];
 
   // 找到包含"北美票房榜"的 h2，然后获取其父元素中的列表
   $("h2").each((_, h2) => {
@@ -226,10 +286,24 @@ async function scrapeDoubanUsBox(): Promise<DoubanHotItem[]> {
             desc,
             url: href || `https://movie.douban.com/subject/${id}/`,
           });
+          // 如果没有图片，记录ID以便批量获取
+          if (!coverUrl && id) {
+            idsWithoutCover.push(id);
+          }
         });
       }
     }
   });
+
+  // 批量获取封面
+  if (idsWithoutCover.length > 0) {
+    const coverMap = await fetchMovieCovers(idsWithoutCover);
+    for (const item of items) {
+      if (item.id && !item.cover && coverMap.has(item.id)) {
+        item.cover = coverMap.get(item.id);
+      }
+    }
+  }
 
   return items;
 }
